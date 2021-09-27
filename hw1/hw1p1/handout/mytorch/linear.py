@@ -39,10 +39,7 @@ class Linear():
             out (np.array): (batch size, out feature)
         """
         self.x = x
-        #self.z = self.W * self.x + self.b
-        print('x: ', self.x)
-        print('W: ', self.W)
-        print('b: ', self.b)
+        self.z = np.dot(self.x, self.W) + self.b
         return self.z
 
     def backward(self, delta):
@@ -54,3 +51,33 @@ class Linear():
             out (np.array): (batch size, in feature)
         """
         raise NotImplemented
+
+
+#delete here on
+from time import time 
+def main():
+    def bias_fn(x):
+        return x
+    def weight_fn(x):
+        return x
+    
+    X = np.array([[4,3]])
+    W = np.array([[4,2,-2],[5,4,5]])
+    B = np.array([[1,2,3]])
+
+    print('x: ', X)
+    print('W: ', W)
+    print('b: ', B)
+
+    z = np.dot(X,W) + B
+    t0 = time()
+    print('z: ', z)
+    t1 = time()
+    print((t1-t0)*10000)
+
+
+main()
+
+
+
+    

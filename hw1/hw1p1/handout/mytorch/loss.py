@@ -47,6 +47,7 @@ class SoftmaxCrossEntropy(Criterion):
         """
         self.logits = x
         self.labels = y
+        self.softmax = 
 
         raise NotImplemented
 
