@@ -109,7 +109,7 @@ class ReLU(Activation):
         derivative = np.ones_like(self.state)
         derivative[np.where(self.state==0)] = 0
         return derivative
-
+'''
 #delete here on
 def test():
      x = np.array([[32, 22, 10]])
@@ -118,4 +118,4 @@ def test():
      state = x
      print(state)
 
-test()
+test()'''

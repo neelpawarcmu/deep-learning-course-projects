@@ -47,9 +47,11 @@ class SoftmaxCrossEntropy(Criterion):
         """
         self.logits = x
         self.labels = y
-        self.softmax = 
-
-        raise NotImplemented
+        a = np.mean(x)
+        #to do: check this logsumexp part
+        x = a + np.log(np.exp(x-a)) #handle very big and small exponents using log - sum - exponent trick
+        self.softmaxLoss = np.exp(x) / np.sum(np.exp(x))
+        return self.softmaxLoss
 
     def derivative(self):
         """
@@ -58,3 +60,10 @@ class SoftmaxCrossEntropy(Criterion):
         """
 
         raise NotImplemented
+
+
+#delete here on
+#how to test using inputs cause => hidden input and output not specified. pytest?
+#red comments 
+#where are we implementing the complete MLP
+#is this how tf does things when we design using it? split layers?
