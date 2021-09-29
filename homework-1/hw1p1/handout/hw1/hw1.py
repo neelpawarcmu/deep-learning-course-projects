@@ -62,11 +62,21 @@ class MLP(object):
         # Initialize and add all your linear layers into the list 'self.linear_layers'
         # (HINT: self.foo = [ bar(???) for ?? in ? ])
         # (HINT: Can you use zip here?)
-        self.linear_layers = NotImplemented
+
+        #create single array of all node counts
+        nodecounts = []
+        nodecounts.append(input_size)
+        nodecounts.extend(hiddens)
+        nodecounts.append(output_size)
+
+        self.linear_layers = [Linear(nodecounts[layer], nodecounts[layer+1], 
+                                weight_init_fn, bias_init_fn) 
+                                for layer in range(0,len(nodecounts)-1)] #didn't use zip but can use it here
 
         # If batch norm, add batch norm layers into the list 'self.bn_layers'
         if self.bn:
-            self.bn_layers = None
+            self.bn_layers = [BatchNorm(nodecount) 
+                                for nodecount in nodecounts]
 
 
     def forward(self, x):
@@ -77,7 +87,11 @@ class MLP(object):
             out (np.array): (batch size, output_size)
         """
         # Complete the forward pass through your entire MLP.
-        raise NotImplemented
+        for layer in self.linear_layers:
+            z = layer.forward
+
+
+        return None
 
     def zero_grads(self):
         # Use numpyArray.fill(0.0) to zero out your backpropped derivatives in each
@@ -158,3 +172,6 @@ def get_training_stats(mlp, dset, nepochs, batch_size):
     # return (training_losses, training_errors, validation_losses, validation_errors)
 
     raise NotImplemented
+
+#Questions
+#can we just say sys.path.append('mytorch') and the system searches for it? You dont need the parent address?

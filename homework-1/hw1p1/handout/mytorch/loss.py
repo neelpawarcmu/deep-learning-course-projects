@@ -47,11 +47,20 @@ class SoftmaxCrossEntropy(Criterion):
         """
         self.logits = x
         self.labels = y
-        a = np.mean(x)
-        #to do: check this logsumexp part
-        x = a + np.log(np.exp(x-a)) #handle very big and small exponents using log - sum - exponent trick
-        self.softmaxLoss = np.exp(x) / np.sum(np.exp(x))
-        return self.softmaxLoss
+        # handle very big and small exponents using log - sum - exponent trick
+        # TO-DO: can mean be better for a?
+        # a = np.mean(x, axis=1, keepdims=True)
+        a = np.max(x, axis=1, keepdims=True)
+        exponents = np.exp(x-a)
+        sum = np.sum(exponents, axis=1, keepdims=True)
+        
+        softmax_predictions = exponents / sum
+
+        logLosses = - self.labels * np.log(softmax_predictions)
+        crossEntropyLoss = np.sum(logLosses, axis=1)
+
+        self.softmax_predictions = softmax_predictions
+        return crossEntropyLoss
 
     def derivative(self):
         """
@@ -59,7 +68,7 @@ class SoftmaxCrossEntropy(Criterion):
             out (np.array): (batch size, 10)
         """
 
-        raise NotImplemented
+        return self.softmax_predictions - self.labels
 
 
 #delete here on
