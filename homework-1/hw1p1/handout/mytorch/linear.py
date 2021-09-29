@@ -74,6 +74,5 @@ def main():
     t1 = time()
     print((t1-t0)*10000)
 
-
 main()
 '''
