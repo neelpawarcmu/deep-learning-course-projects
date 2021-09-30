@@ -53,6 +53,7 @@ class Dataset(torch.utils.data.Dataset):
         return xx, yy
         
     def collate_fn(self, batch):
+        # collate fn not needed
         ### Select all data from batch (1 line)
         batch_x = [x for x,y in batch]
         ### Select all labels from batch (1 line)
