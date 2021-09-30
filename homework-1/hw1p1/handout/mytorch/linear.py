@@ -22,11 +22,11 @@ class Linear():
         self.b = bias_init_fn(out_feature)
 
         # TODO: Complete these but do not change the names.
-        self.dW = np.zeros(None)
-        self.db = np.zeros(None)
+        self.dW = np.zeros((in_feature, out_feature), dtype=float)
+        self.db = np.zeros((1, out_feature), dtype=float)
 
-        self.momentum_W = np.zeros(None)
-        self.momentum_b = np.zeros(None)
+        self.momentum_W = np.zeros((in_feature, out_feature), dtype=float)
+        self.momentum_b = np.zeros((1, out_feature), dtype=float)
 
     def __call__(self, x):
         return self.forward(x)
@@ -38,8 +38,10 @@ class Linear():
         Return:
             out (np.array): (batch size, out feature)
         """
+        #delta = dloss/dz
+        #z = W * x + b           #1, out  =>  (in, out) * (batch, in) + (1, out)         # sum(x * W) + b
         self.x = x
-        self.z = np.dot(self.x, self.W) + self.b
+        self.z = (np.dot(self.x, self.W)) + self.b
         return self.z
 
     def backward(self, delta):
@@ -49,30 +51,13 @@ class Linear():
         Return:
             out (np.array): (batch size, in feature)
         """
-        raise NotImplemented
+        #delta = dloss/dz
+        #dx = delta * W          #batch, in  =>  (batch, out) * (in, out).T         # delta * W.T
+        #dW = x * delta          #in, out    =>  (batch, in) * (batch, out)         # x.T * delta
+        #db = delta              #1, out     =>  (batch, out)                       # sum(delta, axis = 0, keepdims=True)
+        batch_size = delta.shape[0]
+        self.dx = np.dot(delta, self.W.T)
+        self.dW = np.dot(self.x.T, delta)/batch_size
+        self.db = np.sum(delta, axis=0, keepdims=True)/batch_size
 
-'''
-#delete here on
-from time import time 
-def main():
-    def bias_fn(x):
-        return x
-    def weight_fn(x):
-        return x
-    
-    X = np.array([[4,3]])
-    W = np.array([[4,2,-2],[5,4,5]])
-    B = np.array([[1,2,3]])
-
-    print('x: ', X)
-    print('W: ', W)
-    print('b: ', B)
-
-    z = np.dot(X,W) + B
-    t0 = time()
-    print('z: ', z)
-    t1 = time()
-    print((t1-t0)*10000)
-
-main()
-'''
+        return self.dx

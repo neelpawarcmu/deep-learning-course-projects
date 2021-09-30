@@ -63,22 +63,22 @@ class MLP(object):
         # (HINT: self.foo = [ bar(???) for ?? in ? ])
         # (HINT: Can you use zip here?)
 
-        #create single array of all node counts
-        nodecounts = []
-        nodecounts.append(input_size)
-        nodecounts.extend(hiddens)
-        nodecounts.append(output_size)
+        #create single array of all node counts for linear layers (linear layers => i/p, hidden, o/p)
+        layerWise_nodes = []
+        layerWise_nodes.append(input_size)
+        layerWise_nodes.extend(hiddens)
+        layerWise_nodes.append(output_size)
 
-        self.linear_layers = [Linear(nodecounts[layer], nodecounts[layer+1], 
-                                weight_init_fn, bias_init_fn) 
-                                for layer in range(0,len(nodecounts)-1)] #didn't use zip but can use it here
+        #create array of layer objects and use that throughout 
+        self.linear_layers = [Linear(layerWise_nodes[idx], layerWise_nodes[idx+1], weight_init_fn, bias_init_fn) 
+                                for idx in range(len(layerWise_nodes)-1)] #-1:account for idx+1, #didn't use zip but can use it here
 
         # If batch norm, add batch norm layers into the list 'self.bn_layers'
-        if self.bn:
-            self.bn_layers = [BatchNorm(nodecount) 
-                                for nodecount in nodecounts]
+        if self.bn: 
+            self.bn_layers = [BatchNorm(hiddens[idx]) 
+                                for idx in range(self.num_bn_layers)]
 
-
+                                
     def forward(self, x):
         """
         Argument:
@@ -86,37 +86,90 @@ class MLP(object):
         Return:
             out (np.array): (batch size, output_size)
         """
-        # Complete the forward pass through your entire MLP.
-        for layer in self.linear_layers:
-            z = layer.forward
+        # Complete the forward pass through your entire MLP. 
+        # loop over layers till all linear layers are done
+        for i in range(self.nlayers):
+            #affine combination, linear layer
+            z = self.linear_layers[i].forward(x) #ylin
 
+            #batchnorm, bn layer
+            if self.bn and i in range(self.num_bn_layers):
+                eval = not self.train_mode
+                z = self.bn_layers[i].forward(z, eval) #ynorm
+            
+            #activations, activation layer
+            if self.activations:
+                y = self.activations[i].forward(z)
+            
+            x = y #prepare input for next stage (next loop of lin-bn-activ)
 
-        return None
+        return y
 
     def zero_grads(self):
         # Use numpyArray.fill(0.0) to zero out your backpropped derivatives in each
         # of your linear and batchnorm layers.
-        raise NotImplemented
+        for i in range(self.nlayers):
+            self.linear_layers[i].dW.fill(0.0)
+            self.linear_layers[i].db.fill(0.0)
+        
+        for i in range(self.num_bn_layers):
+            self.bn_layers[i].dgamma.fill(0.0)
+            self.bn_layers[i].dbeta.fill(0.0)
 
     def step(self):
         # Apply a step to the weights and biases of the linear layers.
         # Apply a step to the weights of the batchnorm layers.
         # (You will add momentum later in the assignment to the linear layers only
         # , not the batchnorm layers)
+        # Update weights and biases here
 
+        # step size is either the negative of gradient or the positive momentum
         for i in range(len(self.linear_layers)):
-            # Update weights and biases here
-            pass
-        # Do the same for batchnorm layers
+            #default steps used for grad descent rule
+            step_W = -self.lr * self.linear_layers[i].dW
+            step_b = -self.lr * self.linear_layers[i].db
+            if self.momentum !=0:
+                # update momentum and make steps = momentum update rule
+                step_W = self.linear_layers[i].momentum_W = self.momentum * self.linear_layers[i].momentum_W + step_W
+                step_b = self.linear_layers[i].momentum_b = self.momentum * self.linear_layers[i].momentum_b + step_b
+            
+            #step forward with whatever step was generated
+            self.linear_layers[i].W += step_W
+            self.linear_layers[i].b += step_b
 
-        raise NotImplemented
+        # Do the same for batchnorm layers 
+        for i in range(self.num_bn_layers):
+            self.bn_layers[i].gamma -= self.lr * self.bn_layers[i].dgamma
+            self.bn_layers[i].beta -= self.lr * self.bn_layers[i].dbeta
+        
+
 
     def backward(self, labels):
         # Backpropagate through the activation functions, batch norm and
         # linear layers.
         # Be aware of which return derivatives and which are pure backward passes
         # i.e. take in a loss w.r.t it's output.
-        raise NotImplemented
+        # input_linear -> (bn/no bn) -> activation -> hidden_linear -> (bn/ no bn) -> activation -> output_linear -> loss_fn
+
+        # final layer: one forward pass to get activation state
+        outputLayer = self.activations[-1]
+        _ = self.criterion.forward(outputLayer.state, labels)
+
+        # derivative at output layer
+        delta = self.criterion.derivative()
+        for i in reversed(range(self.nlayers)): # nlayers is for all layers upto output layer
+            # derivative at activation
+            der_activation = self.activations[i].derivative()
+            delta = delta * der_activation
+
+            # derivative at batchnorm
+            # no derivative if testing
+            if i < self.num_bn_layers and self.train_mode:
+                delta = self.bn_layers[i].backward(delta)
+            
+            # derivative at linear
+            delta = self.linear_layers[i].backward(delta)
+        
 
     def error(self, labels):
         return (np.argmax(self.output, axis = 1) != np.argmax(labels, axis = 1)).sum()

@@ -17,6 +17,11 @@ class Dataset(torch.utils.data.Dataset):
         batch_x = torch.as_tensor(batch)
         return batch_x
 
-class NeuralNetwork:
+# 
+class NeuralNetwork(nn.Sequential):
     def __init__(self):
         pass
+    def lossfn
+
+    def dataset
+

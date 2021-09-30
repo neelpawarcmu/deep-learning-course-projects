@@ -88,7 +88,7 @@ class Tanh(Activation):
         return self.state
 
     def derivative(self):
-        return self.state * self.state
+        return 1 - self.state * self.state
 
 
 class ReLU(Activation):
@@ -109,13 +109,3 @@ class ReLU(Activation):
         derivative = np.ones_like(self.state)
         derivative[np.where(self.state==0)] = 0
         return derivative
-'''
-#delete here on
-def test():
-     x = np.array([[32, 22, 10]])
-     
-     x[np.where(x<=0)] = 0
-     state = x
-     print(state)
-
-test()'''

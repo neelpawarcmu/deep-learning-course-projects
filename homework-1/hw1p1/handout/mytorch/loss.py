@@ -48,18 +48,21 @@ class SoftmaxCrossEntropy(Criterion):
         self.logits = x
         self.labels = y
         # handle very big and small exponents using log - sum - exponent trick
-        # TO-DO: can mean be better for a?
+        # Test: can mean be better for a?
         # a = np.mean(x, axis=1, keepdims=True)
         a = np.max(x, axis=1, keepdims=True)
+
+        #softmax = individual exponents / sum of individual exponents
         exponents = np.exp(x-a)
         sum = np.sum(exponents, axis=1, keepdims=True)
-        
         softmax_predictions = exponents / sum
 
         logLosses = - self.labels * np.log(softmax_predictions)
         crossEntropyLoss = np.sum(logLosses, axis=1)
 
+        #store for backprop
         self.softmax_predictions = softmax_predictions
+        self.CEloss = crossEntropyLoss
         return crossEntropyLoss
 
     def derivative(self):
@@ -67,12 +70,5 @@ class SoftmaxCrossEntropy(Criterion):
         Return:
             out (np.array): (batch size, 10)
         """
-
+        # derivative of softmax wrt its input = softmax - its input
         return self.softmax_predictions - self.labels
-
-
-#delete here on
-#how to test using inputs cause => hidden input and output not specified. pytest?
-#red comments 
-#where are we implementing the complete MLP
-#is this how tf does things when we design using it? split layers?
