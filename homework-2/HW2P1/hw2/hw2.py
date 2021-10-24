@@ -61,9 +61,30 @@ class CNN(object):
         # self.linear_layer         (Linear)      = Linear(???)
         # <---------------------
 
-        self.convolutional_layers = None
-        self.flatten = None
-        self.linear_layer = None
+        print('\n--------------------Neels tests---------------------\n')
+        print('input_width', input_width)
+        print('num_input_channels', num_input_channels)
+        print('num_channels', num_channels)
+        print('kernel_sizes', kernel_sizes)
+        print('strides', strides)
+        print('num_linear_neurons', num_linear_neurons)
+        print('activations', activations)
+        print('conv_weight_init_fn', conv_weight_init_fn)
+        print('bias_init_fn', bias_init_fn)
+        print('linear_weight_init_fn', linear_weight_init_fn)
+        print('criterion', criterion)
+        print('lr', lr, '\n------------------------------------------------')
+
+        in_width = input_width #copy before modifying in loop
+        for i in range(self.nlayers):
+            out_width = (in_width - kernel_sizes[i]) // strides[i] + 1
+            in_width = out_width
+
+        channels = [num_input_channels] + num_channels
+
+        self.convolutional_layers = [Conv1D(in_channel=channels[i], out_channel=channels[i+1], kernel_size=kernel_sizes[i], stride=strides[i], weight_init_fn=conv_weight_init_fn, bias_init_fn=bias_init_fn) for i in range(self.nlayers)]
+        self.flatten = Flatten()
+        self.linear_layer = Linear(in_feature = out_width*channels[-1], out_feature = num_linear_neurons, weight_init_fn=linear_weight_init_fn, bias_init_fn=bias_init_fn)
 
 
     def forward(self, x):
@@ -77,10 +98,17 @@ class CNN(object):
         ## Your code goes here -->
         # Iterate through each layer
         # <---------------------
+        input = np.copy(x) #can use x directly too
 
+        # convolutions: affine combination -> activation ->
+        for cl in range(self.nlayers):
+            affine_combination = self.convolutional_layers[cl].forward(input)
+            input = self.activations[cl].forward(affine_combination)
+        # flattening
+        input = self.flatten.forward(input)
+        # linear layer
         # Save output (necessary for error and loss)
-        self.output = x
-
+        self.output = self.linear_layer.forward(input)
         return self.output
 
     def backward(self, labels):
@@ -91,13 +119,23 @@ class CNN(object):
             grad (np.array): (batch size, num_input_channels, input_width)
         """
 
-        m, _ = labels.shape
+        #loss = criterion(actual, predicted), summed over resulting array
         self.loss = self.criterion(self.output, labels).sum()
         grad = self.criterion.derivative()
 
         ## Your code goes here -->
         # Iterate through each layer in reverse order
         # <---------------------
+
+        #linear layer
+        grad = self.linear_layer.backward(grad)
+        #flatten
+        grad = self.flatten.backward(grad)
+        #convolutional layers
+        for i in reversed(range(self.nlayers)):
+            grad_activation = self.activations[i].derivative()
+            grad = grad * grad_activation
+            grad = self.convolutional_layers[i].backward(grad)
 
         return grad
 

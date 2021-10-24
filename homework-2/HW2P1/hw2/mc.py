@@ -22,8 +22,13 @@ def question_3():
     return 'b'
 
 def question_4():
+    #working of numpy.tensordot
+    #A = np.arange(30.).reshape(2,3,5)
+    #B = np.arange(24.).reshape(3,4,2)
+    #C = np.tensordot(A,B, axes = ([0,1],[2,0]))
     return 'a' #random to test
 
 def question_5():
-    return 'a' #random to test
+    #lol question
+    return 'a'
 

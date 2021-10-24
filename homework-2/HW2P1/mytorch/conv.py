@@ -36,13 +36,12 @@ class Conv1D():
         Return:
             out (np.array): (batch_size, out_channel, output_size)
         """
-        #pseudocode in handout and lecture 1 (or 2) slides @remove
+        #
         batch_size, in_channel, input_size = x.shape
         output_size = ((input_size - self.kernel_size) // self.stride) + 1
 
-        #store x and its input dimension to use later in backprop gradient calculations #@change
+        #store x to use later in backprop calculations
         self.x = x
-        self.input_size = input_size #@change
 
         Z = np.zeros((batch_size, self.out_channel, output_size))
 
@@ -73,7 +72,7 @@ class Conv1D():
         """
         batch_size, out_channel, output_size = delta.shape
 
-        dx = np.zeros((batch_size, self.in_channel, self.input_size))
+        dx = np.zeros_like(self.x)
         for i in range(batch_size):
             batch =  self.x[i,:,:] # shape => (in_channel, input_size)
             for j in range(self.out_channel):
@@ -133,10 +132,8 @@ class Conv2D():
         output_width = ((input_width - self.kernel_size) // self.stride) + 1
         output_height = ((input_height - self.kernel_size) // self.stride) + 1
 
-        #store x and its input dimension to use later in backprop gradient calculations
+        #store x to use later in backprop
         self.x = x
-        self.input_width = input_width #@change
-        self.input_height = input_height #@change
 
         Z = np.zeros((batch_size, self.out_channel, output_width, output_height))
 
@@ -163,7 +160,7 @@ class Conv2D():
         """
         batch_size, out_channel, output_width, output_height = delta.shape
 
-        dx = np.zeros((batch_size, self.in_channel, self.input_width, self.input_height)) #@change
+        dx = np.zeros_like(self.x)
 
         for i in range(batch_size):
             batch =  self.x[i,:,:,:] # shape => (in_channel, input_width, input_height)
@@ -266,10 +263,11 @@ class Conv2D_dilation():
         self.x_padded = x_padded
 
         #output_size calculations
-        output_width = (input_width_padded - self.kernel_dilated) // self.stride
-        output_height = (input_height_padded - self.kernel_dilated) // self.stride
+        output_width = (input_width_padded - self.kernel_dilated) // self.stride + 1
+        output_height = (input_height_padded - self.kernel_dilated) // self.stride + 1
 
         Z = np.zeros((batch_size, self.out_channel, output_width, output_height))
+        
         '''
         x_padded = (batch_size, in_channel, input_width_padded, input_height_padded)
         W_dilated = (out_channel, in_channel, kernel_dilated, kernel_dilated)
@@ -303,29 +301,30 @@ class Conv2D_dilation():
         #       for whole process while we only need original part of input and kernel for backpropagation.
         #       Please refer to writeup for more details.
         
+        #we dilate delta, convolve using x_padded and dW_dilated and then downsample to preserve shapes changed by dilation
         batch_size, out_channel, output_width, output_height = delta.shape
 
-        output_width_padded = output_width + 2 * self.padding
-        output_height_padded = output_height + 2 * self.padding
+        dilated_width = (output_width - 1)*(self.stride - 1) + output_width
+        dilated_height = (output_height- 1)*(self.stride - 1) + output_height
 
-        delta_dilated = np.zeros((batch_size, out_channel, output_width_padded, output_height))
-        for ch_o in range(self.out_channel):
-            for ch_i in range(self.in_channel):
-                self.W_dilated[ch_o, ch_i, :, :][::self.dilation,::self.dilation] = self.W[ch_o, ch_i, :, :]
+        delta_dilated = np.zeros((batch_size, out_channel, dilated_width, dilated_height))
+        for b in range(batch_size):
+            for ch_o in range(self.out_channel):
+                delta_dilated[b, ch_o, :, :][::self.stride,::self.stride] = delta[b, ch_o, :, :]
 
+        dx = np.zeros_like(self.x_padded) # shape => (batch_size, in_channel, input_width, input_height)
+        dW_dilated = np.zeros_like(self.W_dilated)
 
-
-        dx = np.zeros_like(self.x) # shape => (batch_size, in_channel, input_width, input_height)
         for i in range(batch_size):
-            batch =  self.x[i,:,:,:] # shape => (in_channel, input_width, input_height)
+            batch =  self.x_padded[i,:,:,:] # shape => (in_channel, input_width, input_height)
             for j in range(self.out_channel):
-                W = self.W[j,:,:,:] # shape => (in_channel, kernel_size, kernel_size)
-                for k in range(output_width):
-                    startWidth, endWidth = k * self.stride, k * self.stride + self.kernel_size
-                    for l in range(output_height):
-                        startHeight, endHeight = l * self.stride, l * self.stride + self.kernel_size
+                W = self.W_dilated[j,:,:,:] # shape => (in_channel, kernel_size, kernel_size)
+                for k in range(dilated_width):
+                    startWidth, endWidth = k, k + self.kernel_dilated
+                    for l in range(dilated_height):
+                        startHeight, endHeight = l, l + self.kernel_dilated
                         segment = batch[:, startWidth:endWidth, startHeight:endHeight] # shape => (in_channel, kernel_size, kernel_size)
-                        delta_local = delta[i,j,k,l] # shape => (1) ie. scalar
+                        delta_local = delta_dilated[i,j,k,l] # shape => (1) ie. scalar
 
                         # (make sure gradient dimensions match) -> 
                         # dx[i,:,start:end]:(in_channel, kernel_size) 
@@ -333,9 +332,15 @@ class Conv2D_dilation():
                         # db[j]: (1) ie. scalar
 
                         dx[i,:,startWidth:endWidth,startHeight:endHeight] += W * delta_local
-                        self.dW[j,:,:,:] += segment * delta_local
+                        dW_dilated[j,:,:,:] += segment * delta_local
                         self.db[j] += delta_local
-        return dx
+
+        #reshape to orginal shape
+        for i in range(self.kernel_size):
+            for j in range(self.kernel_size):
+                self.dW[:,:,i,j] = dW_dilated[:,:,i*self.dilation,j*self.dilation]
+
+        return dx[:,:,self.padding:-self.padding, self.padding:-self.padding]
 
 
 
@@ -350,6 +355,7 @@ class Flatten():
         Return:
             out (np.array): (batch_size, in_channel * in width)
         """
+        # flatten outputs, save original shape
         self.b, self.c, self.w = x.shape
         dx = np.reshape(x, (self.b, self.c * self.w))
         return dx
@@ -361,5 +367,6 @@ class Flatten():
         Return:
             dx (np.array): (batch size, in channel, in width)
         """
+        # unflatten using saved shape
         dx = np.reshape(delta, (self.b, self.c, self.w))
         return dx
