@@ -91,31 +91,31 @@ class GRUCell(object):
         # Define your variables based on the writeup using the corresponding
         # names below.
 
-        #IDL lec15 slide22 + hw3p1 writeup pg 9 @remove
+        #IDL lec15 slide22 + hw3p1 writeup pg 9 
 
-        #r_t
-        term1 = np.dot(self.Wrx, x) + self.bir # (h, d) * (d,) = (h,)
-        term2 = np.dot(self.Wrh, h) + self.bhr # (h, h) * (h,) = (h,)
-        r_t = self.r_act(term1 + term2)         # (h,)
-        self.r = r_t #store value
+        # # #slides
+        # # #block 1
+        term1 = np.dot(self.Wrh, h) + self.bir            # (h,h) dot (h,) + (h,) = (h,)
+        term2 = np.dot(self.Wrx, x) + self.bhr            # (h,d) dot (d,) + (h,) = (h,)
+        self.r = self.r_act(term1 + term2)                # activation(h,) = (h,)
 
-        #z_t
-        term1 = np.dot(self.Wzx, x) + self.biz # (h, d) * (d,) = (h,)
-        term2 = np.dot(self.Wzh, h) + self.bhz # (h, h) * (h,) = (h,)
-        z_t = self.z_act(term1 + term2)         # (h,)
-        self.z = z_t #store value
+        #block2
+        term1 = np.dot(self.Wzh, h) + self.biz            # (h,h) dot (h,) + (h,) = (h,)
+        term2 = np.dot(self.Wzx, x) + self.bhz            # (h,d) dot (d,) + (h,) = (h,)
+        self.z = self.r_act(term1 + term2)                # activation(h,) = (h,)
 
-        #n_t 
-        term1 = np.dot(self.Wnx, x) + self.bin # (h, d) * (d,) = (h,)
-        term2 = np.dot(self.Wnh, h) + self.bhn # (h, h) * (h,) = (h,)
-        term2 *= r_t                           # (h,) x (h,) = (h,) elem-wise multiplication
-        n_t = self.h_act(term1 + term2)         
-        self.n = n_t #store value              #(h,)
+        #block3
+        term1 = np.dot(self.Wnx, x) + self.bin            # (h,h) dot (h,) + (h,) = (h,)
+        term2 = self.r * (np.dot(self.Wnh, h) + self.bhn) # (h,) * (h,h) dot (h,) + (h,) = (h,)
+        # save inner state to compute derivative in backprop easily
+        self.n_state = np.dot(self.Wnh, h) + self.bhn                       
+        self.n = self.h_act(term1 + term2)                # activation(h,) = (h,)
 
-        #h_t
-        term1 = (1-z_t) * n_t 
-        term2 = z_t * h
-        h_t = term1 + term2
+        #block4 
+        term1 = (1 - self.z) * self.n                     # (h,) * (h,) = (h,)
+        term2 = self.z * h                                # (h,) * (h,) = (h,)
+        self.h_t = term1 + term2                          # (h,) + (h,) = (h,)  
+
 
         assert self.x.shape == (self.d,)
         assert self.hidden.shape == (self.h,)
@@ -123,9 +123,9 @@ class GRUCell(object):
         assert self.r.shape == (self.h,)
         assert self.z.shape == (self.h,)
         assert self.n.shape == (self.h,)
-        assert h_t.shape == (self.h,) # h_t is the final output of you GRU cell.
+        assert self.h_t.shape == (self.h,) # h_t is the final output of you GRU cell.
 
-        return h_t
+        return self.h_t
 
 
     def backward(self, delta):
@@ -174,34 +174,149 @@ class GRUCell(object):
         #just folllow ppt very carefully and you will get around 26 equations for fwd
         #Follow the derivatives from the saved values in these equations
 
-        #
+        #delta is same as dh_t
+
+        print(f'Original shapes:')
+        for elem in ('x','hidden','n','z','r','Wnx','bin','Wnh','bhn'):
+            elemname = elem
+            elem = eval('self.'+elem)
+            print(f'{elemname} shape: {elem.shape}', end="\t")
+        
         self.x = self.x.reshape(1,-1)
         self.hidden = self.hidden.reshape(1,-1)
         self.r = self.r.reshape(1,-1)
         self.z = self.z.reshape(1,-1)
         self.n = self.n.reshape(1,-1)
 
-        print(f'x shape: {self.x.shape}')
-        print(f'hidden shape: {self.hidden.shape}')
-        print(f'r shape: {self.r.shape}')
-        print(f'z shape: {self.z.shape}')
-        print(f'n shape: {self.n.shape}')
+        print(f'x reshaped: {self.x.shape}')
+        print(f'hidden reshaped: {self.hidden.shape}')
+        print(f'r reshaped: {self.r.shape}')
+        print(f'z reshaped: {self.z.shape}')
+        print(f'n reshaped: {self.n.shape}')
 
+        # create 5 derivatives here itself for ease of troubleshooting
+        dx = np.zeros_like(self.x) 
+        dh = np.zeros_like(self.hidden)
+        dn = np.zeros_like(self.n) 
+        dz = np.zeros_like(self.z)
+        dr = np.zeros_like(self.z)
+
+        print(f'dx shape : {dx.shape}')
+        print(f'dh shape : {dh.shape}')
+
+        #block4          
+        dz += delta * (-self.n + self.hidden)      # (1,h) * (1,h) = (1,h)
+        dn += delta * (1 - self.z)                 # (1,h) * (1,h) = (1,h)
+        dh += delta * self.z                       # (1,h) * (1,h) = (1,h)
+
+        print(f'dn shape : {dn.shape}')
+        print(f'dz shape : {dz.shape}')
+        print(f'dh shape : {dh.shape}')
+
+        #block3
+        grad_activ_n   = dn * (1-self.n**2)         # (1,h)
+        r_grad_activ_n = grad_activ_n * self.r      # (1,h)
+
+        self.dWnx += np.dot(grad_activ_n.T, self.x) # (h,1) dot (1,d) = (h,d)
+        dx        += np.dot(grad_activ_n, self.Wnx) # (1,h) dot (h,d) = (1,d)
+        self.dbin += np.sum(grad_activ_n, axis=0)   # (1,h)
+        dr        += grad_activ_n * self.n_state.T  # (1,h)
+
+        print(f'grad_activ_n shape : {grad_activ_n.shape}')
+        print(f'self.dWnx shape : {self.dWnx.shape}')
+        print(f'dx shape : {dx.shape}')
+        print(f'self.dbin shape : {self.dbin.shape}')
+
+        self.dWnh += np.dot(r_grad_activ_n.T, self.hidden) # (h,1) dot (1,h) = (h,d)
+        dh        += np.dot(r_grad_activ_n, self.Wnh)      # (h,1) dot (1,h) = (h,d)
+        self.dbhn += np.sum(r_grad_activ_n, axis=0)        # (1,h)
+
+        print(f'r_grad_activ_n shape : {r_grad_activ_n.shape}')
+        print(f'self.dWnh shape : {self.dWnh.shape}')
+        print(f'dh shape : {dh.shape}')
+        print(f'self.dbhn shape : {self.dbhn.shape}')
+
+        #block2
+        grad_activ_z = dz * self.z * (1-self.z)             # (1,h) * (1,h) * (1,h) = (1,h)
+        
+        dx        += np.dot(grad_activ_z, self.Wzx)         # (1,h) dot (h,d) = (1,d)
+        self.dWzx += np.dot(grad_activ_z.T, self.x)         # (h,1) dot (1,d) = (h,d)
+        self.dWzh += np.dot(grad_activ_z.T, self.hidden)    # (h,1) dot (1,d) = (h,d)
+        dh        += np.dot(grad_activ_z, self.Wzh)         # (1,h) dot (h,d) = (1,d)
+        self.dbiz += np.sum(grad_activ_z, axis=0)           # (1,h)
+        self.dbhz += np.sum(grad_activ_z, axis=0)           # (1,h)
+
+        print(f'grad_activ_z shape : {grad_activ_z.shape}')
+        print(f'dx shape : {dx.shape}')
+        print(f'self.dWzx shape : {self.dWzx.shape}')
+        print(f'self.dWzh shape : {self.dWzh.shape}')
+        print(f'dh shape : {dh.shape}')
+        print(f'self.dbiz shape : {self.dbiz.shape}')
+        print(f'self.dbhz shape : {self.dbhz.shape}')
+
+        #block1
+        grad_activ_r = dr * self.r * (1-self.r) # (h,1) dot (1,d) = (h,d)
+        dx        += np.dot(grad_activ_r, self.Wrx) # (h,1) dot (1,d) = (h,d)
+        self.dWrx += np.dot(grad_activ_r.T, self.x) # (h,1) dot (1,d) = (h,d)
+        self.dWrh += np.dot(grad_activ_r.T, self.hidden) # (h,1) dot (1,d) = (h,d)
+        dh        += np.dot(grad_activ_r, self.Wrh) # (h,1) dot (1,d) = (h,d)
+        self.dbir += np.sum(grad_activ_r, axis=0) # (h,1) dot (1,d) = (h,d)
+        self.dbhr += np.sum(grad_activ_r, axis=0) # (h,1) dot (1,d) = (h,d)
+
+        print(f'grad_activ_r shape : {grad_activ_r.shape}')
+        print(f'dx shape : {dx.shape}')
+        print(f'self.dWrx shape : {self.dWrx.shape}')
+        print(f'self.dWrh shape : {self.dWrh.shape}')
+        print(f'dh shape : {dh.shape}')
+        print(f'self.dbir shape : {self.dbir.shape}')
+        print(f'self.dbhr shape : {self.dbhr.shape}')
+
+        print('passed all till here')
+
+        return dx, dh
         #layer 1
-        dz_t = - self.n + self.hidden            # (1,h) 
-        dn_t = 1 - self.z                        # (1,h) 
-        dh_t_partA = self.z                      # (1,h)
-        print(f'dz_t shape: {dz_t.shape}')
-        print(f'dn_t shape: {dn_t.shape}')
-        print(f'dh_t_partA shape: {dh_t_partA.shape}')
 
-        #layer 2
-        dtanh_n = 1 - self.n**2                  # (1,h) 
-        dnt_Wnx = np.dot(self.x.T, dtanh_n).T    # (d,1) * (1,h) = (d,h).T = (h,d)
-        self.dWnx = dn_t * dnt_Wnx               # (1,h) * ()              = (h,d)
-        print(f'dtanh_n shape: {dtanh_n.shape}') 
-        print(f'dnt_Wnx shape: {dnt_Wnx.shape}') 
-        print(f'self.dWnx shape: {self.dWnx.shape}') 
+        dh_t = delta              # (1,h)
+        d19 = delta               # (1,h)
+        d18 = delta               # (1,h)
+        dz += d19 * self.hidden.T # (1,h) *  (1,h) = (h,)
+        dh_partA = d19 * self.z   # (1,h) *  (1,h) = (1,h)
+        d17 = d18 * self.n        # (h,)   *  (h,) = (h,)
+        dn = d18 * (1-self.z)#z17 # (h,)   *  (h,) = (h,)
+        dz = -d17                 # (h,)   *  (h,) = (h,)
+
+        # print(f'dh_t ie. delta shape: {delta.shape}')
+        # print(f'd19 shape: {d19.shape}')
+        # print(f'd18 shape: {d18.shape}')
+        # print(f'dz shape: {dz.shape}')
+        # print(f'dh_partA shape: {dh_partA.shape}')
+
+
+        d1 = delta                # (h,)
+        d19 = delta               # (h,)
+        d18 = delta               # (h,)
+        dz = d19 * self.hidden    # (h,)   *  (h,) = (h,)
+        dh_partA = d19 * self.z   # (h,)   *  (h,) = (h,)
+        # print(f'dh_t ie. delta shape: {delta.shape}')
+        # print(f'd19 shape: {d19.shape}')
+        # print(f'd18 shape: {d18.shape}')
+        # print(f'dz shape: {dz.shape}')
+        # print(f'dh_partA shape: {dh_partA.shape}')
+
+        # dz_t = (- self.n + self.hidden) * delta  # (1,h) 
+        # dn_t = (1 - self.z) * delta              # (1,h) 
+        # dh_partA = (self.z) * delta              # (1,h)
+        # print(f'dz_t shape: {dz_t.shape}')
+        # print(f'dn_t shape: {dn_t.shape}')
+        # print(f'dh_t_partA shape: {dh_partA.shape}')
+
+        # #layer 2
+        # dtanh_n = self.h_act.derivative()        # (1,h) 
+        # dnt_Wnx = np.dot(self.x.T, dtanh_n).T    # (d,1) * (1,h) = (d,h).T = (h,d)
+        # self.dWnx = dn_t * dnt_Wnx               # (1,h) * (h,d)           = ????
+        # print(f'dtanh_n shape: {dtanh_n.shape}') 
+        # print(f'dnt_Wnx shape: {dnt_Wnx.shape}') 
+        # print(f'self.dWnx shape: {self.dWnx.shape}') 
 
 
 

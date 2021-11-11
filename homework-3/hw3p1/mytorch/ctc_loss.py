@@ -16,6 +16,9 @@ class CTCLoss(object):
         super(CTCLoss, self).__init__()
         self.BLANK = BLANK
         self.gammas = []
+
+        #modified by neel
+        self.ctc = CTC()
         # <---------------------------------------------
 
     def __call__(self, logits, target, input_lengths, target_lengths):
@@ -62,19 +65,12 @@ class CTCLoss(object):
         self.target_lengths = target_lengths
         # <---------------------------------------------
 
-        #####  Attention:
-        #####  Output losses will be divided by the target lengths
-        #####  and then the mean over the batch is taken
-
         # -------------------------------------------->
         # Don't Need Modify
         # B = batch_size
         B, _ = target.shape 
         totalLoss = np.zeros(B)
         # <---------------------------------------------
-        
-        #@@@@ Initialize a ctc
-        ctc = CTC()
 
         for b in range(B):
             # -------------------------------------------->
@@ -90,30 +86,40 @@ class CTCLoss(object):
             #     Take an average over all batches and return final result
             # <---------------------------------------------
             
+            # -------------------------------------------->
             # Truncate the target to target length and logits to input length
             target_truncated_slice = target[b, :target_lengths[b]]
             logits_truncated_slice = logits[:input_lengths[b], b, :]
 
             # Extend target sequence with blank
-            target_truncated_slice, skipConnect = ctc.targetWithBlank(target_truncated_slice)
+            extSymbols, skipConnect = self.ctc.targetWithBlank(target_truncated_slice)
 
             # Compute forward probabilities and backward probabilities
-            alpha = ctc.forwardProb(logits_truncated_slice, target_truncated_slice, skipConnect)
-            beta = ctc.backwardProb(logits_truncated_slice, target_truncated_slice, skipConnect)
+            alpha = self.ctc.forwardProb(logits_truncated_slice, extSymbols, skipConnect)
+            beta = self.ctc.backwardProb(logits_truncated_slice, extSymbols, skipConnect)
             
             # Compute posteriors using total probability function
-            gamma = ctc.postProb(alpha, beta)
-            print('inp:', logits.shape)
-            print('inp trunc:', logits_truncated_slice.shape)
-            print('gamma:', gamma.shape)
+            gamma = self.ctc.postProb(alpha, beta)
+            # print('logits:\n', logits.shape)
+            # print('target trunc:\n', target_truncated_slice)
+            # print('logits trunc:\n', logits_truncated_slice.round(decimals=2))
+            # print('gamma:\n', gamma.round(decimals=2))
+            # print(f'b: {b}, gamma shape: {gamma.shape}')
+            
+            batch_loss = 0
+            T, S = gamma.shape
+            for t in range(T):
+                for s in range(S):
+                    loss_at_single_input = - gamma[t,s] * np.log(logits_truncated_slice[t, extSymbols[s]])
+                    batch_loss += loss_at_single_input
 
-            # -------------------------------------------->
-            # Your Code goes here
+            # print('batch_loss', batch_loss)
+            # print('target_lengths[b]', target_lengths[b])
 
-            raise NotImplementedError
+            totalLoss[b] = batch_loss
             # <---------------------------------------------
 
-        return totalLoss
+        return np.mean(totalLoss)
 
     def backward(self):
         """CTC loss backard.
@@ -145,6 +151,8 @@ class CTCLoss(object):
         # Don't Need Modify
         T, B, C = self.logits.shape
         dY = np.full_like(self.logits, 0)
+        print('dY.shape', dY.shape)
+
         # <---------------------------------------------
 
         for b in range(B):
@@ -156,11 +164,26 @@ class CTCLoss(object):
             #     Extend target sequence with blank
             #     Compute derivative of divergence and store them in dY
             # <---------------------------------------------
-
+            
+            
             # -------------------------------------------->
+            # Truncate the target to target length and logits to input length
+            target_truncated_slice = self.target[b, :self.target_lengths[b]]
+            logits_truncated_slice = self.logits[:self.input_lengths[b], b, :]
 
-            # Your Code goes here
-            raise NotImplementedError
+            # Extend target sequence with blank
+            extSymbols, skipConnect = self.ctc.targetWithBlank(target_truncated_slice)
+
+            alpha = self.ctc.forwardProb(logits_truncated_slice, extSymbols, skipConnect)
+            beta = self.ctc.backwardProb(logits_truncated_slice, extSymbols, skipConnect)
+
+            gamma = self.ctc.postProb(alpha, beta)
+
+            T, S = gamma.shape
+            for t in range(T):
+                for s in range(S):
+                    dY[t, b, extSymbols[s]] -= gamma[t, s] / logits_truncated_slice[t, extSymbols[s]]
+            #
             # <---------------------------------------------
-
+            
         return dY

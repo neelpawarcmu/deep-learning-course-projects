@@ -18,8 +18,9 @@ class CharacterPredictor(object):
     def __init__(self, input_dim, hidden_dim, num_classes):
         super(CharacterPredictor, self).__init__()
         """The network consists of a GRU Cell and a linear layer."""
-        # self.rnn =
-        # self.projection =
+        self.rnn = GRUCell(input_dim, hidden_dim)
+        self.projection = Linear(hidden_dim, num_classes)
+        self.input_dim, self.hidden_dim, self.num_classes = input_dim, hidden_dim, num_classes
 
     def init_rnn_weights(
         self, Wrx, Wzx, Wnx, Wrh, Wzh, Wnh, bir, biz, bin, bhr, bhz, bhn
@@ -54,7 +55,9 @@ class CharacterPredictor(object):
             hidden state at current time-step.
 
         """
-        raise NotImplementedError
+        hnext = self.rnn.forward(x, h)
+        logits = self.projection(hnext)
+        return logits, hnext
 
 
 def inference(net, inputs):
@@ -77,4 +80,8 @@ def inference(net, inputs):
             one per time step of input..
 
     """
-    raise NotImplementedError
+
+    logits = [[]]* net.num_classes
+    hnext = np.zeros(net.hidden_dim)
+    print(inputs)
+    return 

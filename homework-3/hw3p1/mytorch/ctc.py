@@ -151,16 +151,16 @@ class CTC(object):
 
         Input
         -----
-        alpha: (np.array, dim = (input_len, 2 * target_len + 1))
+        alpha: (np.array, dim = (input_len, 2 * target_len + 1) = (T * S))
                 forward probability
 
-        beta: (np.array, dim = (input_len, 2 * target_len + 1))
+        beta: (np.array, dim = (input_len, 2 * target_len + 1) = (T * S))
                 backward probability
 
         Return
         ------
-        gamma: (np.array, dim = (input_len, 2 * target_len + 1))
-                posterior probability
+        gamma: (np.array, dim = (input_len, 2 * target_len + 1) = (T * S))
+                posterior probability 
 
         """
         [T, S] = alpha.shape
